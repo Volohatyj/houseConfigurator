@@ -53,27 +53,66 @@ catcherPlaneMesh.rotation.x = -Math.PI / 2;
 catcherPlaneMesh.receiveShadow = true;
 scene.add(catcherPlaneMesh);
 
-// 5. Завантаження моделі (використовуємо нашу функцію з loaders.ts)
-loadGLTFModel('assets/glb/BASE_structural_parts.glb', (gltf) => {
-    gltf.scene.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-            child.castShadow = true;
-            child.receiveShadow = true;
+// // 5. Завантаження моделі (використовуємо нашу функцію з loaders.ts)
+// loadGLTFModel('assets/glb/BASE_structural_parts.glb', (gltf) => {
+//     gltf.scene.traverse((child) => {
+//         if ((child as THREE.Mesh).isMesh) {
+//             child.castShadow = true;
+//             child.receiveShadow = true;
             
-            // Оновлюємо матеріали для HDR
-            const mesh = child as THREE.Mesh;
-            if (mesh.material) {
-                const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-                materials.forEach((m: any) => {
-                    if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
-                        m.needsUpdate = true;
-                    }
-                });
-            }
+//             // Оновлюємо матеріали для HDR
+//             const mesh = child as THREE.Mesh;
+//             if (mesh.material) {
+//                 const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+//                 materials.forEach((m: any) => {
+//                     if (m.isMeshStandardMaterial || m.isMeshPhysicalMaterial) {
+//                         m.needsUpdate = true;
+//                     }
+//                 });
+//             }
+//         }
+//     });
+//     scene.add(gltf.scene);
+// });
+
+// 1. Створимо функцію-завантажувач
+loadGLTFModel('assets/glb/BASE_structural_parts.glb', (gltf) => {
+    // Шукаємо меш колони за назвою, яку ти вказав у Blender/3D редакторі
+    const columnTemplate = gltf.scene.getObjectByName('main_balk') as THREE.Mesh;
+
+    if (!columnTemplate) {
+        console.error('Колону main_balk не знайдено у файлі!');
+        return;
+    }
+
+    // Налаштовуємо тіні для шаблону
+    columnTemplate.castShadow = true;
+    columnTemplate.receiveShadow = true;
+
+    // Тепер замість того, щоб додавати всю сцену, 
+    // ми пройдемося по наших даних з класу House
+    renderHouse(columnTemplate);
+});
+
+function renderHouse(template: THREE.Mesh) {
+    // Отримуємо всі колони з нашого екземпляра House
+    // (Припустимо, myHouse доступний у цій області видимості)
+    const columns = myHouse.getColumns(); // Тобі треба додати цей метод у House або ColumnGrid
+
+    columns.forEach((colData) => {
+        if (colData.isVisible()) {
+            // КЛОНУЄМО шаблон для кожної видимої колони
+            const columnMesh = template.clone();
+            
+            // Встановлюємо позицію з нашої логіки ООП
+            columnMesh.position.set(colData.x, 0, colData.y); 
+            
+            scene.add(columnMesh);
         }
     });
-    scene.add(gltf.scene);
-});
+}
+
+
 
 // 6. Параметри обмеження камери
 const maxCameraRadius = 15;
@@ -180,6 +219,11 @@ export class ColumnGrid {
         this.validateAndAdjust();
     }
 
+    // У файлі index.ts всередині ColumnGrid
+    public getColumns(): Column[] {
+        return this._columns;
+    }
+
     // Публічний метод: Видалення (приховування) колони
     public removeColumn(id: number): void {
         const column = this._columns.find(c => c.id === id);
@@ -228,6 +272,70 @@ export class ColumnGrid {
         });
     }
 }
+
+export class House {
+    // Приватні Атрибути (Інкапсуляція)
+    private _width: number;
+    private _depth: number;
+    private _grid: ColumnGrid; // Композиція: House містить ColumnGrid
+
+    constructor(width: number, depth: number, maxSpan: number, minSpan: number) {
+        this._width = width;
+        this._depth = depth;
+        
+        // Ініціалізація ColumnGrid (Композиція)
+        this._grid = new ColumnGrid(maxSpan, minSpan); 
+        console.log(`\n🏡 Створено новий будинок (${width}x${depth}м) з сіткою.`);
+    }
+
+    // 1. ПУБЛІЧНИЙ МЕТОД: Зміна розміру (тригерить перегенерацію)
+    public setWidth(newWidth: number): void {
+        this._width = newWidth;
+        console.log(`Будинок змінено. Нова ширина: ${newWidth}м.`);
+        // У реальному проекті тут буде виклик this._grid.regenerate();
+    }
+    
+    // Метод для додавання колони через будинок
+    public addColumn(x: number, y: number): void {
+        console.log(`[House] Запит на додавання колони в точку x: ${x}`);
+        this._grid.addColumn(x, y);
+    }
+
+    // Метод для видалення колони через будинок
+    public removeColumn(id: number): void {
+        console.log(`[House] Запит на видалення колони ID: ${id}`);
+        this._grid.removeColumn(id);
+    }
+
+    /**
+         * Делегує запит на отримання списку колон внутрішній сітці
+         */
+        public getColumns(): Column[] {
+            return this._grid.getColumns();
+        }
+
+    // 2. ПУБЛІЧНИЙ МЕТОД (Ваше завдання)
+    // Який метод має викликати `this._grid.addColumn(x, y)`?
+    // public addColumnToHouse(...): void { ... }
+    
+    // 3. ПУБЛІЧНИЙ МЕТОД (Ваше завдання)
+    // Який метод має викликати `this._grid.removeColumn(id)`?
+    // public removeColumnFromHouse(...): void { ... }
+
+    public getGridStatus(): void {
+        this._grid.getStatus();
+    }
+}
+
+// =========================================================================
+// ТЕСТУВАННЯ
+// Створюємо будинок і тестуємо композицію
+const myHouse = new House(10.0, 8.0, 4.0, 1.5); // Ширина 10м, Глибина 8м, Max 4м, Min 1.5м
+
+// ТЕСТУЙТЕ ТУТ:
+// myHouse.addColumnToHouse(1, 1);
+// myHouse.removeColumnFromHouse(3);
+// myHouse.getGridStatus();
 
 // Створюємо екземпляр класу Grid
 const grid = new ColumnGrid(5.0, 1.5); // Макс. прогін 5м, Мін. прогін 1.5м
