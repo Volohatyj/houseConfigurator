@@ -11,8 +11,8 @@ interface CameraPosition {
 
 const cameraPosition: CameraPosition = {
     x: -3,
-    y: 1.8,
-    z: 5
+    y: 3,
+    z: 10
 };
 
 /**
